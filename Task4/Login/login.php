@@ -1,39 +1,37 @@
 
 <?php
-session_start();
-
 require "db.php";
 
 $message = "";
 
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
-    $email = trim($_POST["email"] ?? "");
-    $password = $_POST["password"] ?? "";
+    $email = trim($_POST["email"]);
+    $password = $_POST["password"];
 
     $stmt = $conn->prepare(
-        "SELECT id, name, email, password
-         FROM users
-         WHERE email = ?"
+        "SELECT id, password FROM users WHERE email = ?"
     );
 
-    $stmt->execute([$email]);
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
 
-    $user = $stmt->fetch();
+    $stmt->store_result();
+    $stmt->bind_result($id, $hashedPassword);
 
-    if ($user && password_verify($password, $user["password"])) {
+    if ($stmt->fetch() && password_verify($password, $hashedPassword)) {
 
         session_regenerate_id(true);
-
-        $_SESSION["user_id"] = $user["id"];
-        $_SESSION["user_name"] = $user["name"];
+        $_SESSION["user_id"] = $id;
 
         header("Location: users.php");
         exit;
 
     } else {
-        $message = "Invalid email or password.";
+        $message = "Invalid email or password!";
     }
+
+    $stmt->close();
 }
 ?>
 
@@ -41,7 +39,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -54,14 +51,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <?= htmlspecialchars($message) ?>
     </p>
 
-    <form method="POST" action="login.php">
+    <form method="POST">
+        <input type="email" name="email"
+               placeholder="Email" required>
 
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" required>
-
-        <label for="password">Password</label>
-        <input type="password" id="password"
-               name="password" required>
+        <input type="password" name="password"
+               placeholder="Password" required>
 
         <button type="submit">Login</button>
     </form>

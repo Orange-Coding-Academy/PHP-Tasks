@@ -4,51 +4,43 @@ require "db.php";
 
 $message = "";
 
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
-    $name = trim($_POST["name"] ?? "");
-    $email = trim($_POST["email"] ?? "");
-    $password = $_POST["password"] ?? "";
+    $name = trim($_POST["name"]);
+    $email = trim($_POST["email"]);
+    $password = $_POST["password"];
 
-    if ($name === "" || $email === "" || $password === "") {
-        $message = "All fields are required.";
+    // Check if email already exists
+    $check = $conn->prepare("SELECT id FROM users WHERE email = ?");
+    $check->bind_param("s", $email);
+    $check->execute();
+    $check->store_result();
 
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $message = "Please enter a valid email.";
-
+    if ($check->num_rows > 0) {
+        $message = "Email already exists!";
     } else {
 
+        // Hash password
+        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+
+        // Insert user
         $stmt = $conn->prepare(
-            "SELECT id FROM users WHERE email = ?"
+            "INSERT INTO users (name, email, password) VALUES (?, ?, ?)"
         );
 
-        $stmt->execute([$email]);
+        $stmt->bind_param("sss", $name, $email, $hashedPassword);
 
-        if ($stmt->fetch()) {
-            $message = "This email already exists.";
-
-        } else {
-
-            $hashedPassword = password_hash(
-                $password,
-                PASSWORD_DEFAULT
-            );
-
-            $stmt = $conn->prepare(
-                "INSERT INTO users (name, email, password)
-                 VALUES (?, ?, ?)"
-            );
-
-            $stmt->execute([
-                $name,
-                $email,
-                $hashedPassword
-            ]);
-
+        if ($stmt->execute()) {
             header("Location: login.php");
             exit;
+        } else {
+            $message = "Registration failed!";
         }
+
+        $stmt->close();
     }
+
+    $check->close();
 }
 ?>
 
@@ -56,30 +48,27 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="container">
-    <h2>Create Account</h2>
+    <h2>Register</h2>
 
     <p class="message">
         <?= htmlspecialchars($message) ?>
     </p>
 
-    <form method="POST" action="register.php">
+    <form method="POST">
+        <input type="text" name="name"
+               placeholder="Full Name" required>
 
-        <label for="name">Full Name</label>
-        <input type="text" id="name" name="name" required>
+        <input type="email" name="email"
+               placeholder="Email" required>
 
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" required>
-
-        <label for="password">Password</label>
-        <input type="password" id="password"
-               name="password" required>
+        <input type="password" name="password"
+               placeholder="Password" required>
 
         <button type="submit">Register</button>
     </form>
